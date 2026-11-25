@@ -1,0 +1,269 @@
+data: csv {"rows": 8400, "cells": 40, "train_months": "2003-07..2017-06", "test_months": "2017-07..2020-12", "n_train": 5000, "n_val": 840, "n_test": 1480}
+baseline persistence: test MAE 57.918 ppb  RMSE 86.848 ppb
+baseline seasonal_naive: test MAE 30.188 ppb  RMSE 46.099 ppb
+[seed 0] lstm: 416 parameters
+  epoch   1  train 0.01258  val 0.00265  (0.1s)
+  epoch   2  train 0.00180  val 0.00190  (0.1s)
+  epoch   3  train 0.00119  val 0.00119  (0.1s)
+  epoch   4  train 0.00090  val 0.00087  (0.1s)
+  epoch   5  train 0.00081  val 0.00088  (0.1s)
+  epoch   6  train 0.00076  val 0.00082  (0.1s)
+  epoch   7  train 0.00074  val 0.00079  (0.1s)
+  epoch   8  train 0.00071  val 0.00080  (0.1s)
+  epoch   9  train 0.00072  val 0.00091  (0.1s)
+  epoch  10  train 0.00070  val 0.00074  (0.1s)
+  epoch  11  train 0.00069  val 0.00071  (0.1s)
+  epoch  12  train 0.00069  val 0.00085  (0.1s)
+  epoch  13  train 0.00068  val 0.00081  (0.1s)
+  epoch  14  train 0.00066  val 0.00077  (0.1s)
+  epoch  15  train 0.00068  val 0.00068  (0.1s)
+  epoch  16  train 0.00065  val 0.00070  (0.1s)
+  epoch  17  train 0.00063  val 0.00072  (0.1s)
+  epoch  18  train 0.00063  val 0.00068  (0.1s)
+  epoch  19  train 0.00064  val 0.00074  (0.1s)
+  epoch  20  train 0.00063  val 0.00071  (0.1s)
+  epoch  21  train 0.00062  val 0.00081  (0.1s)
+  epoch  22  train 0.00064  val 0.00064  (0.1s)
+  epoch  23  train 0.00061  val 0.00070  (0.1s)
+  epoch  24  train 0.00061  val 0.00068  (0.1s)
+  epoch  25  train 0.00061  val 0.00070  (0.1s)
+  epoch  26  train 0.00061  val 0.00069  (0.2s)
+  epoch  27  train 0.00060  val 0.00069  (0.1s)
+  epoch  28  train 0.00059  val 0.00070  (0.1s)
+  epoch  29  train 0.00061  val 0.00069  (0.1s)
+  epoch  30  train 0.00058  val 0.00068  (0.1s)
+[seed 0] lstm: test MAE 27.993 ppb  RMSE 42.045 ppb
+[seed 0] qlstm: 304 parameters
+  epoch   1  train 0.00743  val 0.00367  (20.3s)
+  epoch   2  train 0.00206  val 0.00153  (20.4s)
+  epoch   3  train 0.00108  val 0.00131  (20.3s)
+  epoch   4  train 0.00095  val 0.00099  (20.5s)
+  epoch   5  train 0.00086  val 0.00100  (20.5s)
+  epoch   6  train 0.00084  val 0.00086  (20.4s)
+  epoch   7  train 0.00078  val 0.00079  (20.9s)
+  epoch   8  train 0.00078  val 0.00079  (20.5s)
+  epoch   9  train 0.00075  val 0.00070  (20.4s)
+  epoch  10  train 0.00072  val 0.00080  (20.4s)
+  epoch  11  train 0.00074  val 0.00075  (20.6s)
+  epoch  12  train 0.00071  val 0.00069  (20.8s)
+  epoch  13  train 0.00069  val 0.00073  (20.8s)
+  epoch  14  train 0.00069  val 0.00071  (20.5s)
+  epoch  15  train 0.00068  val 0.00074  (20.5s)
+  epoch  16  train 0.00066  val 0.00074  (20.2s)
+  epoch  17  train 0.00066  val 0.00079  (20.7s)
+  epoch  18  train 0.00067  val 0.00068  (20.5s)
+  epoch  19  train 0.00066  val 0.00065  (20.5s)
+  epoch  20  train 0.00064  val 0.00069  (20.5s)
+  epoch  21  train 0.00065  val 0.00072  (20.4s)
+  epoch  22  train 0.00063  val 0.00073  (20.5s)
+  epoch  23  train 0.00062  val 0.00081  (20.2s)
+  epoch  24  train 0.00063  val 0.00074  (19.6s)
+  epoch  25  train 0.00064  val 0.00073  (20.6s)
+  epoch  26  train 0.00061  val 0.00081  (21.0s)
+  epoch  27  train 0.00062  val 0.00075  (21.0s)
+[seed 0] qlstm: test MAE 28.574 ppb  RMSE 42.884 ppb
+[seed 1] lstm: 416 parameters
+  epoch   1  train 0.00642  val 0.00291  (0.1s)
+  epoch   2  train 0.00173  val 0.00153  (0.1s)
+  epoch   3  train 0.00095  val 0.00136  (0.1s)
+  epoch   4  train 0.00084  val 0.00086  (0.1s)
+  epoch   5  train 0.00078  val 0.00084  (0.1s)
+  epoch   6  train 0.00074  val 0.00074  (0.1s)
+  epoch   7  train 0.00071  val 0.00073  (0.1s)
+  epoch   8  train 0.00068  val 0.00098  (0.1s)
+  epoch   9  train 0.00071  val 0.00097  (0.1s)
+  epoch  10  train 0.00068  val 0.00070  (0.1s)
+  epoch  11  train 0.00065  val 0.00070  (0.1s)
+  epoch  12  train 0.00065  val 0.00068  (0.1s)
+  epoch  13  train 0.00065  val 0.00070  (0.1s)
+  epoch  14  train 0.00063  val 0.00064  (0.1s)
+  epoch  15  train 0.00062  val 0.00072  (0.1s)
+  epoch  16  train 0.00062  val 0.00080  (0.1s)
+  epoch  17  train 0.00065  val 0.00067  (0.1s)
+  epoch  18  train 0.00061  val 0.00069  (0.1s)
+  epoch  19  train 0.00060  val 0.00065  (0.1s)
+  epoch  20  train 0.00060  val 0.00067  (0.1s)
+  epoch  21  train 0.00060  val 0.00069  (0.1s)
+  epoch  22  train 0.00062  val 0.00073  (0.1s)
+[seed 1] lstm: test MAE 28.176 ppb  RMSE 42.329 ppb
+[seed 1] qlstm: 304 parameters
+  epoch   1  train 0.00397  val 0.00275  (20.9s)
+  epoch   2  train 0.00146  val 0.00113  (21.3s)
+  epoch   3  train 0.00099  val 0.00101  (19.6s)
+  epoch   4  train 0.00087  val 0.00095  (19.4s)
+  epoch   5  train 0.00083  val 0.00086  (19.5s)
+  epoch   6  train 0.00080  val 0.00079  (19.4s)
+  epoch   7  train 0.00077  val 0.00086  (19.5s)
+  epoch   8  train 0.00074  val 0.00077  (19.5s)
+  epoch   9  train 0.00069  val 0.00091  (19.4s)
+  epoch  10  train 0.00071  val 0.00081  (19.6s)
+  epoch  11  train 0.00070  val 0.00072  (19.4s)
+  epoch  12  train 0.00066  val 0.00072  (19.4s)
+  epoch  13  train 0.00066  val 0.00072  (19.4s)
+  epoch  14  train 0.00068  val 0.00084  (19.5s)
+  epoch  15  train 0.00066  val 0.00072  (19.4s)
+  epoch  16  train 0.00062  val 0.00068  (19.6s)
+  epoch  17  train 0.00062  val 0.00076  (19.6s)
+  epoch  18  train 0.00063  val 0.00082  (19.4s)
+  epoch  19  train 0.00061  val 0.00076  (19.5s)
+  epoch  20  train 0.00063  val 0.00071  (19.6s)
+  epoch  21  train 0.00060  val 0.00072  (19.4s)
+  epoch  22  train 0.00060  val 0.00081  (19.6s)
+  epoch  23  train 0.00063  val 0.00066  (19.8s)
+  epoch  24  train 0.00059  val 0.00087  (19.5s)
+  epoch  25  train 0.00062  val 0.00069  (19.4s)
+  epoch  26  train 0.00059  val 0.00068  (19.4s)
+  epoch  27  train 0.00058  val 0.00072  (19.5s)
+  epoch  28  train 0.00057  val 0.00070  (19.4s)
+  epoch  29  train 0.00059  val 0.00083  (19.6s)
+  epoch  30  train 0.00060  val 0.00075  (20.0s)
+  epoch  31  train 0.00057  val 0.00080  (19.8s)
+[seed 1] qlstm: test MAE 27.356 ppb  RMSE 41.277 ppb
+[seed 2] lstm: 416 parameters
+  epoch   1  train 0.00982  val 0.00195  (0.1s)
+  epoch   2  train 0.00129  val 0.00133  (0.1s)
+  epoch   3  train 0.00099  val 0.00098  (0.1s)
+  epoch   4  train 0.00087  val 0.00092  (0.1s)
+  epoch   5  train 0.00080  val 0.00156  (0.1s)
+  epoch   6  train 0.00082  val 0.00082  (0.1s)
+  epoch   7  train 0.00074  val 0.00080  (0.1s)
+  epoch   8  train 0.00071  val 0.00072  (0.1s)
+  epoch   9  train 0.00069  val 0.00069  (0.1s)
+  epoch  10  train 0.00068  val 0.00068  (0.1s)
+  epoch  11  train 0.00066  val 0.00069  (0.1s)
+  epoch  12  train 0.00065  val 0.00070  (0.1s)
+  epoch  13  train 0.00066  val 0.00072  (0.1s)
+  epoch  14  train 0.00067  val 0.00074  (0.1s)
+  epoch  15  train 0.00065  val 0.00067  (0.1s)
+  epoch  16  train 0.00063  val 0.00069  (0.1s)
+  epoch  17  train 0.00065  val 0.00070  (0.1s)
+  epoch  18  train 0.00064  val 0.00081  (0.1s)
+  epoch  19  train 0.00063  val 0.00070  (0.1s)
+  epoch  20  train 0.00063  val 0.00073  (0.1s)
+  epoch  21  train 0.00061  val 0.00068  (0.1s)
+  epoch  22  train 0.00061  val 0.00065  (0.1s)
+  epoch  23  train 0.00060  val 0.00068  (0.1s)
+  epoch  24  train 0.00060  val 0.00065  (0.1s)
+  epoch  25  train 0.00060  val 0.00073  (0.1s)
+  epoch  26  train 0.00061  val 0.00086  (0.1s)
+  epoch  27  train 0.00062  val 0.00079  (0.1s)
+  epoch  28  train 0.00061  val 0.00074  (0.1s)
+  epoch  29  train 0.00058  val 0.00070  (0.1s)
+  epoch  30  train 0.00059  val 0.00073  (0.1s)
+  epoch  31  train 0.00058  val 0.00070  (0.1s)
+  epoch  32  train 0.00059  val 0.00069  (0.1s)
+[seed 2] lstm: test MAE 26.666 ppb  RMSE 40.525 ppb
+[seed 2] qlstm: 304 parameters
+  epoch   1  train 0.00604  val 0.00345  (19.6s)
+  epoch   2  train 0.00181  val 0.00148  (20.0s)
+  epoch   3  train 0.00116  val 0.00120  (19.7s)
+  epoch   4  train 0.00100  val 0.00110  (19.8s)
+  epoch   5  train 0.00095  val 0.00101  (19.7s)
+  epoch   6  train 0.00090  val 0.00099  (19.5s)
+  epoch   7  train 0.00087  val 0.00099  (19.8s)
+  epoch   8  train 0.00084  val 0.00085  (19.5s)
+  epoch   9  train 0.00078  val 0.00080  (19.4s)
+  epoch  10  train 0.00073  val 0.00076  (20.0s)
+  epoch  11  train 0.00071  val 0.00074  (19.6s)
+  epoch  12  train 0.00068  val 0.00075  (19.4s)
+  epoch  13  train 0.00068  val 0.00113  (19.6s)
+  epoch  14  train 0.00070  val 0.00073  (19.7s)
+  epoch  15  train 0.00065  val 0.00071  (19.5s)
+  epoch  16  train 0.00064  val 0.00071  (19.5s)
+  epoch  17  train 0.00064  val 0.00074  (19.6s)
+  epoch  18  train 0.00063  val 0.00070  (19.5s)
+  epoch  19  train 0.00062  val 0.00071  (19.5s)
+  epoch  20  train 0.00062  val 0.00070  (19.9s)
+  epoch  21  train 0.00065  val 0.00069  (19.7s)
+  epoch  22  train 0.00063  val 0.00072  (19.6s)
+  epoch  23  train 0.00061  val 0.00073  (19.6s)
+  epoch  24  train 0.00060  val 0.00076  (19.4s)
+  epoch  25  train 0.00061  val 0.00072  (19.4s)
+  epoch  26  train 0.00061  val 0.00068  (19.8s)
+  epoch  27  train 0.00062  val 0.00068  (19.5s)
+  epoch  28  train 0.00059  val 0.00076  (19.9s)
+  epoch  29  train 0.00062  val 0.00075  (19.8s)
+  epoch  30  train 0.00060  val 0.00065  (26.1s)
+  epoch  31  train 0.00059  val 0.00071  (21.9s)
+  epoch  32  train 0.00059  val 0.00073  (19.5s)
+  epoch  33  train 0.00058  val 0.00069  (925.6s)
+  epoch  34  train 0.00058  val 0.00069  (19.9s)
+  epoch  35  train 0.00059  val 0.00073  (19.6s)
+  epoch  36  train 0.00059  val 0.00071  (925.5s)
+  epoch  37  train 0.00059  val 0.00068  (19.5s)
+  epoch  38  train 0.00058  val 0.00067  (19.6s)
+[seed 2] qlstm: test MAE 27.632 ppb  RMSE 42.147 ppb
+{
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "target": "level",
+  "baselines": {
+    "persistence": {
+      "mae": 57.91790808494657,
+      "rmse": 86.8476516186198
+    },
+    "seasonal_naive": {
+      "mae": 30.188308346697944,
+      "rmse": 46.099161698687354
+    }
+  },
+  "qlstm": {
+    "mae": [
+      28.573727014093723,
+      27.355748530683123,
+      27.632212212536007
+    ],
+    "rmse": [
+      42.88370009332993,
+      41.27698211299998,
+      42.14666772838811
+    ],
+    "mae_mean": 27.853895919104286,
+    "rmse_mean": 42.10244997823934,
+    "sec_per_epoch_mean": 35.889224846820476,
+    "mae_vs_persistence_pct": -51.907973129395906,
+    "rmse_vs_persistence_pct": -51.52148711731805,
+    "mae_vs_seasonal_naive_pct": -7.7328361721500745,
+    "rmse_vs_seasonal_naive_pct": -8.66981431586817
+  },
+  "lstm": {
+    "mae": [
+      27.993265266368144,
+      28.175810427932046,
+      26.666423657650984
+    ],
+    "rmse": [
+      42.04485848028105,
+      42.32887363451684,
+      40.52527869640702
+    ],
+    "mae_mean": 27.611833117317058,
+    "rmse_mean": 41.63300360373497,
+    "sec_per_epoch_mean": 0.08681795344208226,
+    "mae_vs_persistence_pct": -52.32591433236926,
+    "rmse_vs_persistence_pct": -52.06202720764298,
+    "mae_vs_seasonal_naive_pct": -8.534679054524451,
+    "rmse_vs_seasonal_naive_pct": -9.68815468737592
+  },
+  "rmse_change_pct_qlstm_vs_lstm": 1.1275822877748296,
+  "mae_change_pct_qlstm_vs_lstm": 0.8766632796843004,
+  "ttest_seeds_mae": {
+    "t": 0.44612744935758875,
+    "p": 0.6991545845070111
+  },
+  "ttest_seeds_rmse": {
+    "t": 0.5916116893024203,
+    "p": 0.6140754472667288
+  },
+  "ttest_windows_abs_err": {
+    "t": 1.928551881296086,
+    "p": 0.05397771252728439,
+    "n": 1480
+  }
+}
+real 3740.80
+user 1889.38
+sys 28.94

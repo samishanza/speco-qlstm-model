@@ -1,0 +1,97 @@
+{
+  "meta": {
+    "rows": 8400,
+    "cells": 40,
+    "train_months": "2003-07..2017-06",
+    "test_months": "2017-07..2020-12",
+    "n_train": 5000,
+    "n_val": 840,
+    "n_test": 1480
+  },
+  "args": {
+    "data": "csv",
+    "csv": "/Users/shanzasami/speco-qlstm-model/data/conus_monthly.csv",
+    "seeds": "[0, 1, 2]",
+    "epochs": "40",
+    "lr": "0.01",
+    "batch": "64",
+    "patience": "8",
+    "hidden": "5",
+    "qubits": "4",
+    "layers": "2",
+    "seq_len": "12",
+    "horizon": "6",
+    "target": "level",
+    "out": "/Users/shanzasami/speco-qlstm-model/results",
+    "tag": "level_e40"
+  },
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "target": "level",
+  "baselines": {
+    "persistence": {
+      "mae": 57.91790808494657,
+      "rmse": 86.8476516186198
+    },
+    "seasonal_naive": {
+      "mae": 30.188308346697944,
+      "rmse": 46.099161698687354
+    }
+  },
+  "qlstm": {
+    "mae": [
+      28.573727014093723,
+      27.355748530683123,
+      27.632212212536007
+    ],
+    "rmse": [
+      42.88370009332993,
+      41.27698211299998,
+      42.14666772838811
+    ],
+    "mae_mean": 27.853895919104286,
+    "rmse_mean": 42.10244997823934,
+    "sec_per_epoch_mean": 35.889224846820476,
+    "mae_vs_persistence_pct": -51.907973129395906,
+    "rmse_vs_persistence_pct": -51.52148711731805,
+    "mae_vs_seasonal_naive_pct": -7.7328361721500745,
+    "rmse_vs_seasonal_naive_pct": -8.66981431586817
+  },
+  "lstm": {
+    "mae": [
+      27.993265266368144,
+      28.175810427932046,
+      26.666423657650984
+    ],
+    "rmse": [
+      42.04485848028105,
+      42.32887363451684,
+      40.52527869640702
+    ],
+    "mae_mean": 27.611833117317058,
+    "rmse_mean": 41.63300360373497,
+    "sec_per_epoch_mean": 0.08681795344208226,
+    "mae_vs_persistence_pct": -52.32591433236926,
+    "rmse_vs_persistence_pct": -52.06202720764298,
+    "mae_vs_seasonal_naive_pct": -8.534679054524451,
+    "rmse_vs_seasonal_naive_pct": -9.68815468737592
+  },
+  "rmse_change_pct_qlstm_vs_lstm": 1.1275822877748296,
+  "mae_change_pct_qlstm_vs_lstm": 0.8766632796843004,
+  "ttest_seeds_mae": {
+    "t": 0.44612744935758875,
+    "p": 0.6991545845070111
+  },
+  "ttest_seeds_rmse": {
+    "t": 0.5916116893024203,
+    "p": 0.6140754472667288
+  },
+  "ttest_windows_abs_err": {
+    "t": 1.928551881296086,
+    "p": 0.05397771252728439,
+    "n": 1480
+  }
+}

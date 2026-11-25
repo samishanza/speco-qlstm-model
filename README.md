@@ -116,45 +116,57 @@ interrupted. `--data synthetic` runs the whole pipeline on generated data with t
 
 ## Results
 
-Run on 2026-11-25 with the open data path: CT-CH4-2025 near-surface CH4 + NCEP/NCAR R1 weather, 40 top-EDGAR cells
-(3° × 2°), 2003-01..2020-12. Command: `python -m speco_qlstm.train --data csv --seeds 0 1 2 --epochs 8`.
+Data: CT-CH4-2025 near-surface CH4 + NCEP/NCAR R1 weather, 40 top-EDGAR cells (3° × 2°), 2003-01..2020-12.
+Training months 2003-07..2017-06, test months 2017-07..2020-12; 5,000 train / 840 validation / 1,480 test windows
+(12-month input, 6-month horizon). Seeds 0, 1, 2. Other settings are the repo defaults (hidden 5, 4 qubits,
+2 entangling layers, lr 0.01, batch 64, early stopping with patience 8). Three pre-specified runs, nothing tuned:
 
-**Epochs were reduced from the default 40 to 8** to keep the run short; all other settings are the repo defaults
-(hidden 5, 4 qubits, 2 entangling layers, lr 0.01, batch 64, patience 8, 12-month input window, 6-month horizon).
-With 8 epochs the models are likely under-trained, so treat these as a first baseline, not final numbers.
+```bash
+python -m speco_qlstm.train --data csv --seeds 0 1 2 --epochs 8                                  # first run (renamed *_level_e8)
+python -m speco_qlstm.train --data csv --seeds 0 1 2 --target level --tag level_e40              # 40 epochs
+python -m speco_qlstm.train --data csv --seeds 0 1 2 --target seasonal-diff --tag seasonal_diff_e40
+```
 
-- Training months 2003-07..2017-06 (after 6 months consumed by lag features), test months 2017-07..2020-12.
-  Windows: 5,000 train, 840 validation, 1,480 test (40 cells × 37).
-- Wall time 8.6 min on a MacBook Air CPU: QLSTM ~21 s/epoch (simulated circuits), LSTM ~0.1 s/epoch.
-- Parameters: QLSTM 304, LSTM 416.
+`seasonal-diff` predicts y(t+k) − y(t+k−12), the change from the same month a year earlier, and adds that
+earlier value back (it is always inside the input window; the code asserts this). All errors are in ppb on the same
+1,480 test windows; persistence and seasonal-naive are computed on those same windows.
 
-Test error in ppb (all 6 forecast months pooled):
+Test MAE / RMSE (ppb), per seed and mean:
 
-| Seed | QLSTM MAE | QLSTM RMSE | LSTM MAE | LSTM RMSE |
-|---|---|---|---|---|
-| 0 | 33.45 | 50.06 | 32.71 | 50.66 |
-| 1 | 33.24 | 48.37 | 30.32 | 46.83 |
-| 2 | 34.61 | 52.74 | 30.46 | 45.27 |
-| **Mean** | **33.76** | **50.39** | **31.16** | **47.58** |
+| Run | Model | Seed 0 | Seed 1 | Seed 2 | **Mean** | QLSTM vs LSTM | p (seeds) MAE / RMSE | p (windows) |
+|---|---|---|---|---|---|---|---|---|
+| level, 8 epochs | QLSTM | 33.45 / 50.06 | 33.24 / 48.37 | 34.61 / 52.74 | **33.76 / 50.39** | +8.3 % / +5.9 % | 0.12 / 0.36 | 3.7e-39 |
+| | LSTM | 32.71 / 50.66 | 30.32 / 46.83 | 30.46 / 45.27 | **31.16 / 47.58** | | | |
+| level, 40 epochs | QLSTM | 28.57 / 42.88 | 27.36 / 41.28 | 27.63 / 42.15 | **27.85 / 42.10** | +0.9 % / +1.1 % | 0.70 / 0.61 | 0.054 |
+| | LSTM | 27.99 / 42.05 | 28.18 / 42.33 | 26.67 / 40.53 | **27.61 / 41.63** | | | |
+| seasonal-diff, 40 epochs | QLSTM | 27.98 / 44.56 | 28.36 / 44.92 | 31.24 / 56.21 | **29.19 / 48.56** | +3.4 % / +8.4 % | 0.62 / 0.41 | 2.8e-5 |
+| | LSTM | 29.71 / 44.65 | 27.69 / 44.60 | 27.29 / 45.21 | **28.23 / 44.82** | | | |
+| baseline | seasonal naive (same month last year) | | | | **30.19 / 46.10** | | | |
+| baseline | persistence (last month repeated) | | | | **57.92 / 86.85** | | | |
 
-The QLSTM is worse than the classical LSTM: MAE +8.3 %, RMSE +5.9 %.
-- Paired t-test across the 3 seeds: MAE p = 0.12, RMSE p = 0.36 (not significant; n = 3 is very small).
-- Paired t-test across the 1,480 test windows (absolute error averaged over seeds): t = 13.5, p = 3.7e-39, LSTM
-  lower. Windows from the same cell and overlapping months are not independent, so this p-value overstates the
-  evidence.
+p (seeds): paired t-test of the three per-seed values (n = 3, so low power). p (windows): paired t-test of per-window
+absolute error averaged over seeds (n = 1,480); windows overlap in time and share cells, so they are not
+independent and this p-value overstates the evidence.
 
-Context from simple baselines on the same test windows (computed with the same scaler and windows, not part of
-`train.py`): persistence (last observed month repeated) MAE 57.9 / RMSE 86.9 ppb; seasonal naive (same month one year
-earlier) MAE 30.2 / RMSE 46.1 ppb. Neither model beats the seasonal-naive forecast in this run, which is expected for
-a rising trend that a year-old value lags only slightly; more epochs, trend-aware features or differencing may change
-this, but none of that was tried here.
+Epochs actually run (early stopping), seeds 0/1/2: level-40 LSTM 30/22/32, QLSTM 27/31/38; seasonal-diff LSTM
+35/17/19, QLSTM 10/17/40. Wall time: 8-epoch run 8.6 min; level-40 62 min; seasonal-diff-40 33 min (QLSTM
+~21–36 s/epoch depending on machine load, LSTM ~0.1 s/epoch; MacBook Air CPU, runs at `nice 5`).
+
+What this says, plainly:
+- With 40 epochs both models beat the seasonal-naive forecast, but only modestly: level-target LSTM by 8.5 % MAE /
+  9.7 % RMSE, QLSTM by 7.7 % / 8.7 %. After 8 epochs neither did.
+- QLSTM and LSTM are statistically indistinguishable at 40 epochs on the level target (QLSTM ~1 % worse, p ≈ 0.6–0.7
+  across seeds). The QLSTM has fewer parameters (304 vs 416) and is a few hundred times slower to train in simulation.
+- The seasonal-difference target did not help: both models were slightly worse than with the level target, and
+  QLSTM seed 2 had one bad run (RMSE 56.2, worse than seasonal naive), which drives its higher mean. On MAE the
+  seasonal-diff models still beat seasonal naive (LSTM −6.5 %, QLSTM −3.3 %); on RMSE the QLSTM did not (+5.3 %).
 
 These numbers are not comparable to the paper's: different methane product (model reanalysis, not satellite), grid
 (3° × 2°), weather source and period.
 
-Files: `results/metrics.json`, `results/loss_curves.png`, `results/forecast_examples.png`,
-`results/error_boxplot.png` (PNGs are not committed; re-run to regenerate), training log `results/train_log.txt`,
-data summary `results/fetch_summary.txt`.
+Files in `results/`: `metrics_level_e8.json`, `metrics_level_e40.json`, `metrics_seasonal_diff_e40.json`, matching
+`train_log_*.txt`, `fetch_summary.txt` (data sanity summary), and per run `loss_curves_<tag>.png`,
+`forecast_examples_<tag>.png`, `error_boxplot_<tag>.png` (PNGs are not committed; re-run to regenerate).
 
 ## Layout
 

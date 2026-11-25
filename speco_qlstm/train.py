@@ -1,7 +1,15 @@
 """Train the QLSTM and the classical LSTM baseline, evaluate on the held-out final 20% of months, compare.
 
     python -m speco_qlstm.train --data csv --seeds 0 1 2
+    python -m speco_qlstm.train --data csv --target seasonal-diff        # predict y(t+k) - y(t+k-12)
     python -m speco_qlstm.train --data synthetic --epochs 3 --seeds 0   # smoke test only
+
+Targets:
+- level (default): the model predicts min-max-scaled CH4 for the next `horizon` months.
+- seasonal-diff: the model predicts, for each horizon step k, the residual y(t+k) - y(t+k-12) against the same month
+  one year earlier, standardised with a scaler fit on training windows only. The ppb forecast is the predicted
+  residual plus y(t+k-12), which is always inside the input window (asserted), so no future value is used.
+Metrics are always in ppb on the same test windows, next to persistence and seasonal-naive baselines.
 """
 from __future__ import annotations
 
@@ -15,7 +23,7 @@ import torch
 from scipy import stats
 from torch import nn
 
-from .data import DEFAULT_CSV, FEATURES, Scaler, create_sequences, engineer, load, split
+from .data import DEFAULT_CSV, FEATURES, TARGET, Scaler, create_sequences, engineer, load, split
 from .models import build
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,6 +46,44 @@ def prepare(source: str, csv: Path, seq_len: int, horizon: int, val_frac: float 
             "test_months": f"{test_df.date.min():%Y-%m}..{test_df.date.max():%Y-%m}",
             **{f"n_{k}": int(len(v[0])) for k, v in data.items()}}
     return data, scaler, meta
+
+
+CH4_COL = FEATURES.index(TARGET)
+
+
+def seasonal_base(x: np.ndarray, horizon: int, scaler: Scaler) -> np.ndarray:
+    """y(t+k-12) in ppb for k = 0..horizon-1, read from the input window x (n, seq_len, features).
+
+    Window month j (0-based) is t - seq_len + j, so t+k-12 is window index seq_len - 12 + k. It must lie inside the
+    window: seq_len >= 12 (not before the window) and horizon <= 12 (not after the last input month).
+    """
+    seq_len = x.shape[1]
+    idx = seq_len - 12 + np.arange(horizon)
+    assert idx.min() >= 0 and idx.max() <= seq_len - 1, "seasonal base would fall outside the input window"
+    return scaler.inverse_target(x[:, idx, CH4_COL])
+
+
+def persistence(x: np.ndarray, horizon: int, scaler: Scaler) -> np.ndarray:
+    """Last observed month repeated for every horizon step (ppb)."""
+    return np.repeat(scaler.inverse_target(x[:, -1, CH4_COL])[:, None], horizon, axis=1)
+
+
+class ResidualTarget:
+    """Seasonal-difference target: r = y - y_lastyear (ppb), standardised with training-window statistics."""
+
+    def __init__(self, data, scaler: Scaler, horizon: int):
+        self.scaler, self.horizon = scaler, horizon
+        r = self.residual(*data["train"][:2])
+        self.mu, self.sd = float(r.mean()), float(r.std()) or 1.0
+
+    def residual(self, x, y_scaled):
+        return self.scaler.inverse_target(y_scaled) - seasonal_base(x, self.horizon, self.scaler)
+
+    def encode(self, x, y_scaled) -> np.ndarray:
+        return ((self.residual(x, y_scaled) - self.mu) / self.sd).astype(np.float32)
+
+    def to_ppb(self, x, pred) -> np.ndarray:
+        return pred * self.sd + self.mu + seasonal_base(x, self.horizon, self.scaler)
 
 
 def fit(model: nn.Module, data, epochs: int, lr: float, batch: int, patience: int, log=print):
@@ -98,7 +144,9 @@ def main() -> None:
     ap.add_argument("--layers", type=int, default=2)
     ap.add_argument("--seq-len", type=int, default=12)
     ap.add_argument("--horizon", type=int, default=6)
+    ap.add_argument("--target", choices=["level", "seasonal-diff"], default="level")
     ap.add_argument("--out", type=Path, default=ROOT / "results")
+    ap.add_argument("--tag", default="", help="suffix for metrics/plot file names, e.g. level_e40")
     a = ap.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
 
@@ -106,7 +154,21 @@ def main() -> None:
     print(f"data: {a.data} {json.dumps(meta)}")
     if a.data == "synthetic":
         print("NOTE: synthetic data — numbers below test the pipeline only and mean nothing about methane.")
+    x_test = data["test"][0]
     y_true = scaler.inverse_target(data["test"][1])
+    if a.target == "seasonal-diff":
+        rt = ResidualTarget(data, scaler, a.horizon)
+        data = {k: (x, rt.encode(x, y), c) for k, (x, y, c) in data.items()}
+        to_ppb = rt.to_ppb
+        meta["residual_scaler"] = {"mean_ppb": rt.mu, "sd_ppb": rt.sd}
+    else:
+        to_ppb = lambda x, pred: scaler.inverse_target(pred)  # noqa: E731
+    baselines = {}
+    for bname, f in (("persistence", persistence(x_test, a.horizon, scaler)),
+                     ("seasonal_naive", seasonal_base(x_test, a.horizon, scaler))):
+        err = f - y_true
+        baselines[bname] = {"mae": float(np.abs(err).mean()), "rmse": float(np.sqrt((err ** 2).mean()))}
+        print(f"baseline {bname}: test MAE {baselines[bname]['mae']:.3f} ppb  RMSE {baselines[bname]['rmse']:.3f} ppb")
 
     runs = {"qlstm": [], "lstm": []}
     for seed in a.seeds:
@@ -116,14 +178,15 @@ def main() -> None:
             model = build(name, len(FEATURES), a.hidden, a.horizon, a.qubits, a.layers)
             print(f"[seed {seed}] {name}: {sum(p.numel() for p in model.parameters())} parameters")
             hist = fit(model, data, a.epochs, a.lr, a.batch, a.patience)
-            y_hat = scaler.inverse_target(predict(model, data["test"][0]))
+            y_hat = to_ppb(x_test, predict(model, x_test))
             err = y_hat - y_true
             runs[name].append({"seed": seed, "mae": float(np.abs(err).mean()), "rmse": float(np.sqrt((err ** 2).mean())),
                                "window_abs_err": np.abs(err).mean(1), "y_hat": y_hat, "hist": hist})
             r = runs[name][-1]
             print(f"[seed {seed}] {name}: test MAE {r['mae']:.3f} ppb  RMSE {r['rmse']:.3f} ppb")
 
-    summary = {"meta": meta, "args": {k: str(v) for k, v in vars(a).items()}, "seeds": a.seeds}
+    summary = {"meta": meta, "args": {k: str(v) for k, v in vars(a).items()}, "seeds": a.seeds,
+               "target": a.target, "baselines": baselines}
     for name in runs:
         summary[name] = {"mae": [r["mae"] for r in runs[name]], "rmse": [r["rmse"] for r in runs[name]],
                          "mae_mean": float(np.mean([r["mae"] for r in runs[name]])),
@@ -140,12 +203,18 @@ def main() -> None:
     ca = np.mean([r["window_abs_err"] for r in runs["lstm"]], 0)
     t = stats.ttest_rel(qa, ca)
     summary["ttest_windows_abs_err"] = {"t": float(t.statistic), "p": float(t.pvalue), "n": int(len(qa))}
-    (a.out / "metrics.json").write_text(json.dumps(summary, indent=2))
+    sfx = f"_{a.tag}" if a.tag else ""
+    for name in runs:
+        s_ = summary[name]
+        for bname, b in baselines.items():
+            s_[f"mae_vs_{bname}_pct"] = 100 * (s_["mae_mean"] - b["mae"]) / b["mae"]
+            s_[f"rmse_vs_{bname}_pct"] = 100 * (s_["rmse_mean"] - b["rmse"]) / b["rmse"]
+    (a.out / f"metrics{sfx}.json").write_text(json.dumps(summary, indent=2))
     print(json.dumps({k: v for k, v in summary.items() if k not in ("args", "meta")}, indent=2))
-    plots(runs, y_true, data["test"][2], a.out)
+    plots(runs, y_true, data["test"][2], a.out, sfx)
 
 
-def plots(runs, y_true, cells, out: Path) -> None:
+def plots(runs, y_true, cells, out: Path, sfx: str = "") -> None:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -157,7 +226,7 @@ def plots(runs, y_true, cells, out: Path) -> None:
             ax.plot(r["hist"]["val"], style, color="C1", alpha=.6, label=f"{name} val (seed {r['seed']})")
     ax.set(xlabel="epoch", ylabel="MSE (scaled)", title="Training and validation loss", yscale="log")
     ax.legend(fontsize=7, ncol=2)
-    fig.tight_layout(); fig.savefig(out / "loss_curves.png", dpi=150); plt.close(fig)
+    fig.tight_layout(); fig.savefig(out / f"loss_curves{sfx}.png", dpi=150); plt.close(fig)
 
     q, c = runs["qlstm"][0]["y_hat"], runs["lstm"][0]["y_hat"]
     picks = [np.where(cells == u)[0][0] for u in np.unique(cells)[:4]]
@@ -168,13 +237,13 @@ def plots(runs, y_true, cells, out: Path) -> None:
         ax.plot(h, c[i], "C1--^", label="LSTM")
         ax.set(title=f"cell {cells[i]}, first test window", xlabel="months ahead", ylabel="CH4 (ppb)")
     axes[0][0].legend(fontsize=8)
-    fig.tight_layout(); fig.savefig(out / "forecast_examples.png", dpi=150); plt.close(fig)
+    fig.tight_layout(); fig.savefig(out / f"forecast_examples{sfx}.png", dpi=150); plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(5, 4))
     ax.boxplot([np.concatenate([r["window_abs_err"] for r in runs[n]]) for n in ("qlstm", "lstm")])
     ax.set_xticks([1, 2], ["QLSTM", "LSTM"])
     ax.set(ylabel="mean absolute error per window (ppb)", title="Test error, all seeds")
-    fig.tight_layout(); fig.savefig(out / "error_boxplot.png", dpi=150); plt.close(fig)
+    fig.tight_layout(); fig.savefig(out / f"error_boxplot{sfx}.png", dpi=150); plt.close(fig)
 
 
 if __name__ == "__main__":

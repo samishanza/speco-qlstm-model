@@ -204,3 +204,36 @@ def test_fetch_open_methane_ncep_offline(tmp_path, monkeypatch):
     top = out[out.cell_id == 0].iloc[0]
     assert (top.lat, top.lon) == (39.0, -79.5)
     assert np.allclose(out.wind_speed, 5.0) and np.allclose(out.temperature, 15.0) and np.allclose(out.pressure, 900.0)
+
+
+# ---- seasonal-difference target ----
+
+def test_seasonal_base_is_same_month_last_year_and_inside_window():
+    from speco_qlstm.train import persistence, seasonal_base
+    df = engineer(synthetic_dataset(n_cells=1, n_months=60))
+    s = Scaler.fit(df)
+    d = s.transform(df)
+    X, y, _ = create_sequences(d, seq_len=12, horizon=6)
+    raw = df.sort_values("date").ch4.to_numpy()
+    base = seasonal_base(X, 6, s)
+    # window i: inputs raw[i:i+12], targets raw[i+12:i+18], same month last year raw[i:i+6]
+    for i in (0, 7, len(X) - 1):
+        assert np.allclose(base[i], raw[i:i + 6], atol=1e-3)
+        assert np.allclose(s.inverse_target(y[i]), raw[i + 12:i + 18], atol=1e-3)
+    assert np.allclose(persistence(X, 6, s)[3], raw[3 + 11], atol=1e-3)
+    with pytest.raises(AssertionError):      # horizon 13 would need a month after the last input month
+        seasonal_base(np.zeros((1, 12, len(FEATURES)), np.float32), 13, s)
+    with pytest.raises(AssertionError):      # seq_len < 12 would need a month before the window
+        seasonal_base(np.zeros((1, 6, len(FEATURES)), np.float32), 6, s)
+
+
+def test_residual_target_roundtrip_and_train_only_scaler():
+    from speco_qlstm.train import ResidualTarget, seasonal_base
+    data, scaler, _ = prepare("synthetic", None, 12, 6)
+    rt = ResidualTarget(data, scaler, 6)
+    xtr, ytr, _ = data["train"]
+    r_train = scaler.inverse_target(ytr) - seasonal_base(xtr, 6, scaler)
+    assert np.isclose(rt.mu, r_train.mean()) and np.isclose(rt.sd, r_train.std())  # train windows only
+    xte, yte, _ = data["test"]
+    enc = rt.encode(xte, yte)
+    assert np.allclose(rt.to_ppb(xte, enc), scaler.inverse_target(yte), atol=1e-3)  # exact inverse

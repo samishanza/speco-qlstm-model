@@ -1,0 +1,101 @@
+{
+  "meta": {
+    "rows": 8400,
+    "cells": 40,
+    "train_months": "2003-07..2017-06",
+    "test_months": "2017-07..2020-12",
+    "n_train": 5000,
+    "n_val": 840,
+    "n_test": 1480,
+    "residual_scaler": {
+      "mean_ppb": 4.4395496155397085,
+      "sd_ppb": 52.175554546801685
+    }
+  },
+  "args": {
+    "data": "csv",
+    "csv": "/Users/shanzasami/speco-qlstm-model/data/conus_monthly.csv",
+    "seeds": "[0, 1, 2]",
+    "epochs": "40",
+    "lr": "0.01",
+    "batch": "64",
+    "patience": "8",
+    "hidden": "5",
+    "qubits": "4",
+    "layers": "2",
+    "seq_len": "12",
+    "horizon": "6",
+    "target": "seasonal-diff",
+    "out": "/Users/shanzasami/speco-qlstm-model/results",
+    "tag": "seasonal_diff_e40"
+  },
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "target": "seasonal-diff",
+  "baselines": {
+    "persistence": {
+      "mae": 57.91790808494657,
+      "rmse": 86.8476516186198
+    },
+    "seasonal_naive": {
+      "mae": 30.188308346697944,
+      "rmse": 46.099161698687354
+    }
+  },
+  "qlstm": {
+    "mae": [
+      27.97539057333431,
+      28.36071634335537,
+      31.242535841998652
+    ],
+    "rmse": [
+      44.56034851798794,
+      44.9200128395532,
+      56.20824495909659
+    ],
+    "mae_mean": 29.19288091956278,
+    "rmse_mean": 48.562868772212575,
+    "sec_per_epoch_mean": 35.870388614663895,
+    "mae_vs_persistence_pct": -49.59610613569399,
+    "rmse_vs_persistence_pct": -44.082692085365636,
+    "mae_vs_seasonal_naive_pct": -3.2973938642177925,
+    "rmse_vs_seasonal_naive_pct": 5.344364154880876
+  },
+  "lstm": {
+    "mae": [
+      29.70895615704585,
+      27.689475279584535,
+      27.290759442977908
+    ],
+    "rmse": [
+      44.65145232776268,
+      44.600116481176094,
+      45.207563872174866
+    ],
+    "mae_mean": 28.229730293202767,
+    "rmse_mean": 44.819710893704546,
+    "sec_per_epoch_mean": 0.08745155942557785,
+    "mae_vs_persistence_pct": -51.25906437815569,
+    "rmse_vs_persistence_pct": -48.39271982790682,
+    "mae_vs_seasonal_naive_pct": -6.487869512269011,
+    "rmse_vs_seasonal_naive_pct": -2.7754318253020203
+  },
+  "rmse_change_pct_qlstm_vs_lstm": 8.35158862890791,
+  "mae_change_pct_qlstm_vs_lstm": 3.4118307768314797,
+  "ttest_seeds_mae": {
+    "t": 0.5845445902775291,
+    "p": 0.6180093573265399
+  },
+  "ttest_seeds_rmse": {
+    "t": 1.0309739612938826,
+    "p": 0.4109111948713733
+  },
+  "ttest_windows_abs_err": {
+    "t": 4.199892370562485,
+    "p": 2.829856903122481e-05,
+    "n": 1480
+  }
+}

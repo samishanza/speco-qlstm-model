@@ -59,7 +59,7 @@ def main() -> None:
         df = fetch_open_methane(a.out, a.start, a.end, a.cells, a.edgar, a.threads, a.weather)
     else:
         df = fetch_copernicus(a.out, a.start, a.end, a.cells, a.edgar)
-    print(f"wrote {a.out}")
+    print(f"wrote {a.out.name}")
     print(summarize(df))
 
 

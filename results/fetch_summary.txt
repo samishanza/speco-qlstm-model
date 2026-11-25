@@ -2,7 +2,7 @@
   NCEP R1 vwnd.sig995.mon.mean.nc: {'time': 216, 'lat': 15, 'lon': 29}
   NCEP R1 air.sig995.mon.mean.nc: {'time': 216, 'lat': 15, 'lon': 29}
   NCEP R1 pres.sfc.mon.mean.nc: {'time': 216, 'lat': 15, 'lon': 29}
-wrote /Users/shanzasami/speco-qlstm-model/data/conus_monthly.csv
+wrote data/conus_monthly.csv
 8640 rows, 40 cells, 2003-01..2020-12
 ch4 ppb: min 1790.1  p5 1864.8  median 1969.5  p95 2147.0  max 3302.0
 cells with missing months: 0; NaNs: 0

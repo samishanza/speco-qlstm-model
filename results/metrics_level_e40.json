@@ -10,7 +10,7 @@
   },
   "args": {
     "data": "csv",
-    "csv": "/Users/shanzasami/speco-qlstm-model/data/conus_monthly.csv",
+    "csv": "data/conus_monthly.csv",
     "seeds": "[0, 1, 2]",
     "epochs": "40",
     "lr": "0.01",
@@ -22,7 +22,7 @@
     "seq_len": "12",
     "horizon": "6",
     "target": "level",
-    "out": "/Users/shanzasami/speco-qlstm-model/results",
+    "out": "results",
     "tag": "level_e40"
   },
   "seeds": [

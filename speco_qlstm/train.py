@@ -130,6 +130,16 @@ def predict(model, x: np.ndarray) -> np.ndarray:
         return model(torch.from_numpy(x)).numpy()
 
 
+def _rel(v):
+    """Record paths relative to the repo so results files carry no local home path."""
+    if isinstance(v, Path):
+        try:
+            return str(v.resolve().relative_to(ROOT.resolve()))
+        except ValueError:
+            return v.name
+    return str(v)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--data", choices=["csv", "synthetic"], default="csv")
@@ -185,7 +195,7 @@ def main() -> None:
             r = runs[name][-1]
             print(f"[seed {seed}] {name}: test MAE {r['mae']:.3f} ppb  RMSE {r['rmse']:.3f} ppb")
 
-    summary = {"meta": meta, "args": {k: str(v) for k, v in vars(a).items()}, "seeds": a.seeds,
+    summary = {"meta": meta, "args": {k: _rel(v) for k, v in vars(a).items()}, "seeds": a.seeds,
                "target": a.target, "baselines": baselines}
     for name in runs:
         summary[name] = {"mae": [r["mae"] for r in runs[name]], "rmse": [r["rmse"] for r in runs[name]],

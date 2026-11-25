@@ -147,9 +147,60 @@ def test_fetch_open_methane_end_to_end_offline(tmp_path, monkeypatch):
     xr.Dataset({"emissions": (("lat", "lon"), em)}, coords={"lat": glat, "lon": glon}).to_netcdf(edgar)
     monkeypatch.setattr(D, "download_ctch4_monthly", lambda *a, **k: ct_file)
     monkeypatch.setattr(D, "download_era5", lambda *a, **k: era_file)
-    out = D.fetch_open_methane(tmp_path / "out.csv", 2010, 2010, n_cells=3, edgar_path=edgar)
+    out = D.fetch_open_methane(tmp_path / "out.csv", 2010, 2010, n_cells=3, edgar_path=edgar, weather="era5")
     assert out.cell_id.nunique() == 3 and len(out) == 9
     top = out[out.cell_id == 0].iloc[0]
     assert (top.lat, top.lon) == (31.0, -103.5) and np.isclose(top.edgar_emission, 50.0)
     assert np.allclose(out.wind_speed, 5.0) and np.allclose(out.temperature, 10.0) and np.allclose(out.pressure, 950.0)
     assert np.isclose(top.ch4, ch4.sel(lat=31.0, lon=-103.5).values[0])
+
+
+def test_overlap_weights_and_area_weighted_regrid():
+    from speco_qlstm.data import area_weighted_regrid, overlap_weights
+    # 2.5 deg source cells onto the 3 deg cell -126..-123: -127.5 (-128.75..-126.25) misses it,
+    # -125 (-126.25..-123.75) covers 2.25 deg, -122.5 (-123.75..-121.25) covers 0.75 deg
+    w = overlap_weights(np.array([-127.5, -125.0, -122.5]), 2.5, np.array([-124.5]), 3.0)
+    assert np.allclose(w, [[0, 0.75, 0.25]])
+    # latitude weights are area (sin) weighted, so the equatorward part of a band counts slightly more
+    wl = overlap_weights(np.array([25.0, 27.5]), 2.5, np.array([26.25]), 2.5, coslat=True)
+    assert np.allclose(wl.sum(), 1) and wl[0, 0] > wl[0, 1] > 0.49
+    wl = overlap_weights(np.array([22.5, 25.0, 27.5]), 2.5, np.array([25.0]), 2.0, coslat=True)
+    assert np.allclose(wl, [[0, 1, 0]])
+    # a field linear in lon is reproduced to within the source cell discretisation; a constant stays constant
+    lat, lon = np.arange(20, 55.1, 2.5), np.arange(-130, -59.9, 2.5)
+    da = xr.DataArray(np.broadcast_to(lon, (2, len(lat), len(lon))).copy(), dims=("time", "lat", "lon"),
+                      coords={"time": [0, 1], "lat": lat, "lon": lon})
+    out = area_weighted_regrid(da, CT_LATS[CT_LAT_IDX], CT_LONS[CT_LON_IDX], 2.0, 3.0)
+    assert out.shape == (2, len(CT_LAT_IDX), len(CT_LON_IDX))
+    assert np.abs(out[0, 0] - CT_LONS[CT_LON_IDX]).max() < 0.2  # piecewise-constant source cells: close, not exact
+    assert np.allclose(area_weighted_regrid(da * 0 + 7.0, CT_LATS[CT_LAT_IDX], CT_LONS[CT_LON_IDX], 2.0, 3.0), 7.0)
+    with pytest.raises(ValueError):
+        overlap_weights(np.array([0.0]), 1.0, np.array([10.0]), 1.0)
+
+
+def test_fetch_open_methane_ncep_offline(tmp_path, monkeypatch):
+    from speco_qlstm import data as D
+    times = pd.date_range("2010-01-01", periods=2, freq="MS")
+    lats, lons = CT_LATS[CT_LAT_IDX], CT_LONS[CT_LON_IDX]
+    ch4 = xr.DataArray(np.full((2, len(lats), len(lons)), 1900.0), dims=("time", "lat", "lon"),
+                       coords={"time": times, "lat": lats, "lon": lons}, name="ch4")
+    ct_file = tmp_path / "ct.nc"
+    ch4.to_dataset().to_netcdf(ct_file)
+    nlat, nlon = np.arange(55, 19.9, -2.5), np.arange(230, 300.1, 2.5)  # NCEP style: descending lat, 0..360 lon
+    shp = (2, len(nlat), len(nlon))
+    ncep = xr.Dataset({k: (("time", "lat", "lon"), np.full(shp, v)) for k, v in
+                       (("uwnd", 3.0), ("vwnd", -4.0), ("air", 15.0), ("pres", 900.0))},
+                      coords={"time": times, "lat": nlat, "lon": nlon})
+    nf = tmp_path / "ncep.nc"
+    ncep.to_netcdf(nf)
+    glat, glon = np.arange(-89.95, 90, 0.1), np.arange(-179.95, 180, 0.1)
+    em = np.zeros((len(glat), len(glon)), np.float32)
+    em[np.abs(glat - 39.0).argmin(), np.abs(glon - (-79.5)).argmin()] = 9.0
+    edgar = tmp_path / "edgar.nc"
+    xr.Dataset({"emissions": (("lat", "lon"), em)}, coords={"lat": glat, "lon": glon}).to_netcdf(edgar)
+    monkeypatch.setattr(D, "download_ctch4_monthly", lambda *a, **k: ct_file)
+    monkeypatch.setattr(D, "download_ncep_monthly", lambda *a, **k: nf)
+    out = D.fetch_open_methane(tmp_path / "o.csv", 2010, 2010, n_cells=2, edgar_path=edgar)
+    top = out[out.cell_id == 0].iloc[0]
+    assert (top.lat, top.lon) == (39.0, -79.5)
+    assert np.allclose(out.wind_speed, 5.0) and np.allclose(out.temperature, 15.0) and np.allclose(out.pressure, 900.0)

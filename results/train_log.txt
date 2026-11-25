@@ -1,0 +1,114 @@
+data: csv {"rows": 8400, "cells": 40, "train_months": "2003-07..2017-06", "test_months": "2017-07..2020-12", "n_train": 5000, "n_val": 840, "n_test": 1480}
+[seed 0] lstm: 416 parameters
+  epoch   1  train 0.01258  val 0.00265  (0.3s)
+  epoch   2  train 0.00180  val 0.00190  (0.1s)
+  epoch   3  train 0.00119  val 0.00119  (0.1s)
+  epoch   4  train 0.00090  val 0.00087  (0.1s)
+  epoch   5  train 0.00081  val 0.00088  (0.1s)
+  epoch   6  train 0.00076  val 0.00082  (0.1s)
+  epoch   7  train 0.00074  val 0.00079  (0.1s)
+  epoch   8  train 0.00071  val 0.00080  (0.1s)
+[seed 0] lstm: test MAE 32.714 ppb  RMSE 50.655 ppb
+[seed 0] qlstm: 304 parameters
+  epoch   1  train 0.00743  val 0.00367  (21.3s)
+  epoch   2  train 0.00206  val 0.00153  (20.4s)
+  epoch   3  train 0.00108  val 0.00131  (20.3s)
+  epoch   4  train 0.00095  val 0.00099  (20.6s)
+  epoch   5  train 0.00086  val 0.00100  (21.6s)
+  epoch   6  train 0.00084  val 0.00086  (20.5s)
+  epoch   7  train 0.00078  val 0.00079  (20.6s)
+  epoch   8  train 0.00078  val 0.00079  (21.2s)
+[seed 0] qlstm: test MAE 33.447 ppb  RMSE 50.062 ppb
+[seed 1] lstm: 416 parameters
+  epoch   1  train 0.00642  val 0.00291  (0.1s)
+  epoch   2  train 0.00173  val 0.00153  (0.1s)
+  epoch   3  train 0.00095  val 0.00136  (0.1s)
+  epoch   4  train 0.00084  val 0.00086  (0.1s)
+  epoch   5  train 0.00078  val 0.00084  (0.1s)
+  epoch   6  train 0.00074  val 0.00074  (0.1s)
+  epoch   7  train 0.00071  val 0.00073  (0.1s)
+  epoch   8  train 0.00068  val 0.00098  (0.1s)
+[seed 1] lstm: test MAE 30.320 ppb  RMSE 46.826 ppb
+[seed 1] qlstm: 304 parameters
+  epoch   1  train 0.00397  val 0.00275  (22.2s)
+  epoch   2  train 0.00146  val 0.00113  (20.8s)
+  epoch   3  train 0.00099  val 0.00101  (20.3s)
+  epoch   4  train 0.00087  val 0.00095  (21.1s)
+  epoch   5  train 0.00083  val 0.00086  (21.6s)
+  epoch   6  train 0.00080  val 0.00079  (20.8s)
+  epoch   7  train 0.00077  val 0.00086  (22.2s)
+  epoch   8  train 0.00074  val 0.00077  (20.5s)
+[seed 1] qlstm: test MAE 33.238 ppb  RMSE 48.367 ppb
+[seed 2] lstm: 416 parameters
+  epoch   1  train 0.00982  val 0.00195  (0.1s)
+  epoch   2  train 0.00129  val 0.00133  (0.1s)
+  epoch   3  train 0.00099  val 0.00098  (0.1s)
+  epoch   4  train 0.00087  val 0.00092  (0.1s)
+  epoch   5  train 0.00080  val 0.00156  (0.1s)
+  epoch   6  train 0.00082  val 0.00082  (0.1s)
+  epoch   7  train 0.00074  val 0.00080  (0.1s)
+  epoch   8  train 0.00071  val 0.00072  (0.1s)
+[seed 2] lstm: test MAE 30.459 ppb  RMSE 45.269 ppb
+[seed 2] qlstm: 304 parameters
+  epoch   1  train 0.00604  val 0.00345  (21.8s)
+  epoch   2  train 0.00181  val 0.00148  (21.8s)
+  epoch   3  train 0.00116  val 0.00120  (22.3s)
+  epoch   4  train 0.00100  val 0.00110  (21.8s)
+  epoch   5  train 0.00095  val 0.00101  (22.8s)
+  epoch   6  train 0.00090  val 0.00099  (22.4s)
+  epoch   7  train 0.00087  val 0.00099  (20.0s)
+  epoch   8  train 0.00084  val 0.00085  (21.0s)
+[seed 2] qlstm: test MAE 34.608 ppb  RMSE 52.742 ppb
+{
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "qlstm": {
+    "mae": [
+      33.44688591190922,
+      33.23834713673486,
+      34.6077141158173
+    ],
+    "rmse": [
+      50.0618333814738,
+      48.36718760842039,
+      52.74193646884325
+    ],
+    "mae_mean": 33.76431572148713,
+    "rmse_mean": 50.390319152912475,
+    "sec_per_epoch_mean": 21.252398133277893
+  },
+  "lstm": {
+    "mae": [
+      32.71383876207721,
+      30.320436394661716,
+      30.45873016605262
+    ],
+    "rmse": [
+      50.65546451407739,
+      46.82584386970799,
+      45.269375396034434
+    ],
+    "mae_mean": 31.164335107597182,
+    "rmse_mean": 47.583561259939934,
+    "sec_per_epoch_mean": 0.09742860992749532
+  },
+  "rmse_change_pct_qlstm_vs_lstm": 5.898587282359464,
+  "mae_change_pct_qlstm_vs_lstm": 8.342807908185177,
+  "ttest_seeds_mae": {
+    "t": 2.603034145682589,
+    "p": 0.12130767301645529
+  },
+  "ttest_seeds_rmse": {
+    "t": 1.1632114571200498,
+    "p": 0.36475983359019093
+  },
+  "ttest_windows_abs_err": {
+    "t": 13.481083019145865,
+    "p": 3.7448022868803484e-39,
+    "n": 1480
+  }
+}
+.venv/bin/python -u -m speco_qlstm.train --data csv --seeds 0 1 2 --epochs 8  503.05s user 9.12s system 99% cpu 8:36.86 total

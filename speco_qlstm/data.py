@@ -111,6 +111,11 @@ def _open(path: Path):
     return xr.open_dataset(path)
 
 
+def xr_open(path: Path):
+    import xarray as xr
+    return xr.open_dataset(path)
+
+
 def _std(ds):
     """Normalise coordinate names to lat/lon/time and longitudes to -180..180."""
     ren = {}
@@ -380,17 +385,104 @@ def block_mean(da, lats: np.ndarray, lons: np.ndarray, dlat: float, dlon: float)
     return xr.DataArray(out, dims=dims, coords=coords, name=da.name)
 
 
+# NOAA PSL NCEP/NCAR Reanalysis 1 monthly means (public, no account): 2.5 deg global grid, sigma=0.995 (lowest
+# model sigma level, ~40 m above ground) wind and air temperature, and surface pressure.
+NCEP_BASE = "https://downloads.psl.noaa.gov/Datasets/ncep.reanalysis.derived/surface"
+NCEP_FILES = {"uwnd": "uwnd.sig995.mon.mean.nc", "vwnd": "vwnd.sig995.mon.mean.nc",
+              "air": "air.sig995.mon.mean.nc", "pres": "pres.sfc.mon.mean.nc"}
+
+
+def download_ncep_monthly(years: list[int], target: Path, log=print) -> Path:
+    """NCEP R1 monthly u, v (sig995), air temperature (sig995) and surface pressure, subset to CONUS (+ margin).
+
+    Each global file (25-31 MB) is downloaded, subset and deleted; only the small CONUS subset is kept.
+    """
+    import requests
+    import xarray as xr
+    if target.exists():
+        return target
+    _check_disk()
+    out = {}
+    for var, name in NCEP_FILES.items():
+        raw = target.parent / f"ncep_{name}"
+        with requests.get(f"{NCEP_BASE}/{name}", stream=True, timeout=600) as r:
+            r.raise_for_status()
+            with open(raw, "wb") as fh:
+                for block in r.iter_content(1 << 20):
+                    fh.write(block)
+        with xr.open_dataset(raw) as ds:
+            da = _std(ds)[var].sel(time=slice(f"{years[0]}-01-01", f"{years[-1]}-12-31"),
+                                  lat=slice(20, 55), lon=slice(-130, -60)).load()
+        raw.unlink()
+        out[var] = da
+        log(f"  NCEP R1 {name}: {dict(da.sizes)}")
+    xr.Dataset(out).to_netcdf(target)
+    return target
+
+
+def overlap_weights(src_centres: np.ndarray, src_width: float, dst_centres: np.ndarray, dst_width: float,
+                    coslat: bool = False) -> np.ndarray:
+    """Matrix W (dst, src): fraction of each destination cell covered by each source cell (rows sum to 1).
+
+    With coslat=True the 1-D overlaps are latitude bands weighted by area (difference of sin(lat)).
+    """
+    w = np.zeros((len(dst_centres), len(src_centres)))
+    for i, d in enumerate(dst_centres):
+        d0, d1 = d - dst_width / 2, d + dst_width / 2
+        for j, c in enumerate(src_centres):
+            a, b = max(d0, c - src_width / 2), min(d1, c + src_width / 2)
+            if b > a:
+                w[i, j] = (np.sin(np.radians(b)) - np.sin(np.radians(a))) if coslat else (b - a)
+    tot = w.sum(1, keepdims=True)
+    if (tot == 0).any():
+        raise ValueError("destination cell not covered by the source grid")
+    return w / tot
+
+
+def area_weighted_regrid(da, lats: np.ndarray, lons: np.ndarray, dlat: float, dlon: float) -> np.ndarray:
+    """Conservative (area-overlap-weighted) average of a regular lat/lon field (time, lat, lon) onto target cells."""
+    slat, slon = da["lat"].values, da["lon"].values
+    wl = overlap_weights(slat, abs(float(np.diff(slat).mean())), lats, dlat, coslat=True)
+    wo = overlap_weights(slon, abs(float(np.diff(slon).mean())), lons, dlon)
+    return np.einsum("il,tlm,jm->tij", wl, da.transpose("time", "lat", "lon").values, wo)
+
+
 def fetch_open_methane(out_csv: Path = DEFAULT_CSV, start_year: int = 2003, end_year: int = 2020,
-                       n_cells: int = 40, edgar_path: Path = EDGAR_DEFAULT, threads: int = 8) -> pd.DataFrame:
-    """NOAA CT-CH4 (open) + ERA5 weather on CT-CH4's native 3 x 2 deg grid, top-N EDGAR cells, tidy CSV."""
+                       n_cells: int = 40, edgar_path: Path = EDGAR_DEFAULT, threads: int = 8,
+                       weather: str = "ncep") -> pd.DataFrame:
+    """NOAA CT-CH4 (open) + weather on CT-CH4's native 3 x 2 deg grid, top-N EDGAR cells, tidy CSV.
+
+    weather="ncep": NCEP/NCAR R1 monthly means (open), area-weighted onto the CT cells.
+    weather="era5": ERA5 monthly means (Copernicus CDS), 0.75 deg points block-averaged into the CT cells.
+    """
     years = list(range(start_year, end_year + 1))
     tag = f"{start_year}-{end_year}"
     ch4 = _std(_open(download_ctch4_monthly(years, RAW / f"ctch4_2025_sfc_conus_monthly_{tag}.nc", threads)))["ch4"]
-    met = _std(_open(download_era5(years, RAW / f"era5_monthly_conus_{tag}.nc")))
     lats, lons = ch4.lat.values, ch4.lon.values
+    ch4_t = pd.to_datetime(ch4.time.values).to_period("M").to_timestamp()
+    if weather == "ncep":
+        met = _std(xr_open(download_ncep_monthly(years, RAW / f"ncep_r1_monthly_conus_{tag}.nc")))
+        met_t = pd.to_datetime(met.time.values).to_period("M").to_timestamp()
+        if not met_t.equals(ch4_t):
+            raise ValueError("NCEP and CT-CH4 months differ")
+        u, v = (area_weighted_regrid(met[k], lats, lons, CT_DLAT, CT_DLON) for k in ("uwnd", "vwnd"))
+        t = area_weighted_regrid(met["air"], lats, lons, CT_DLAT, CT_DLON)
+        if np.nanmedian(t) < 100:  # degC -> K (tidy_rows expects K)
+            t = t + 273.15
+        sp = area_weighted_regrid(met["pres"], lats, lons, CT_DLAT, CT_DLON)
+        if np.nanmedian(sp) < 2000:  # hPa/mbar -> Pa
+            sp = sp * 100.0
+        regrid = {"speed": np.sqrt(u ** 2 + v ** 2), "t2m": t, "sp": sp}
+        emis = edgar_on_grid(lats, lons, edgar_path, CT_DLAT, CT_DLON)
+        valid = np.isfinite(ch4.values).all(0) & np.isfinite(regrid["speed"]).all(0)
+        picked = pick_cells(emis, valid, n_cells)
+        out = tidy_rows(picked, lats, lons, ch4_t, ch4.values, regrid["speed"], regrid["t2m"], regrid["sp"], emis)
+        out_csv.parent.mkdir(parents=True, exist_ok=True)
+        out.to_csv(out_csv, index=False)
+        return out
+    met = _std(_open(download_era5(years, RAW / f"era5_monthly_conus_{tag}.nc")))
     speed = np.sqrt(met["u10"] ** 2 + met["v10"] ** 2).rename("speed")
     met_t = pd.to_datetime(met.time.values).to_period("M").to_timestamp()
-    ch4_t = pd.to_datetime(ch4.time.values).to_period("M").to_timestamp()
     if not met_t.equals(ch4_t):
         raise ValueError("ERA5 and CT-CH4 months differ")
     def tll(v):  # drop singleton extras (e.g. ensemble `number`) and order dims as time, lat, lon

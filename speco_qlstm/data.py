@@ -1,7 +1,10 @@
 """Data for the SPECO QLSTM: fetch, feature engineering, chronological split and sequence windows.
 
 Source data (see README for licences):
-- Methane: CAMS global greenhouse gas reanalysis (EGG4), monthly means, column-averaged CH4 (Copernicus ADS).
+- Methane, default: NOAA GML CarbonTracker-CH4 (CT-CH4-2025), lowest model level CH4 mole fraction, 3 deg lon x
+  2 deg lat, read from the open NOAA archive (no account) and averaged to monthly means.
+- Methane, alternative: CAMS global greenhouse gas reanalysis (EGG4), monthly column-averaged CH4 (Copernicus ADS;
+  needs an account and accepted ADS terms).
 - Weather: ERA5 single-level monthly means (Copernicus CDS): 10 m wind, 2 m temperature, surface pressure.
 - Hotspot selection: EDGAR v8.0 CH4 total emissions, 2022, 0.1 deg (JRC).
 
@@ -120,17 +123,43 @@ def _std(ds):
     return ds.sortby("lat")
 
 
-def edgar_on_grid(lats: np.ndarray, lons: np.ndarray, path: Path = EDGAR_DEFAULT) -> np.ndarray:
-    """Sum EDGAR 0.1 deg emissions (tonnes CH4/yr) into GRID-sized cells centred on (lats, lons)."""
+def edgar_on_grid(lats: np.ndarray, lons: np.ndarray, path: Path = EDGAR_DEFAULT,
+                  dlat: float = GRID, dlon: float = GRID) -> np.ndarray:
+    """Sum EDGAR 0.1 deg emissions (tonnes CH4/yr) into dlat x dlon cells centred on (lats, lons)."""
     import xarray as xr
     e = xr.open_dataset(path)["emissions"].load()
     out = np.zeros((len(lats), len(lons)))
-    half = GRID / 2
     for i, la in enumerate(lats):
-        band = e.sel(lat=slice(la - half, la + half))
+        band = e.sel(lat=slice(la - dlat / 2, la + dlat / 2))
         for j, lo in enumerate(lons):
-            out[i, j] = float(band.sel(lon=slice(lo - half, lo + half)).sum())
+            out[i, j] = float(band.sel(lon=slice(lo - dlon / 2, lo + dlon / 2)).sum())
     return out
+
+
+def pick_cells(emis: np.ndarray, valid: np.ndarray, n_cells: int) -> list[tuple[int, int]]:
+    """Indices of the n_cells largest-emission grid cells among those where `valid` is True."""
+    picked = []
+    for k in np.argsort(emis.ravel(), kind="stable")[::-1]:
+        i, j = np.unravel_index(k, emis.shape)
+        if valid[i, j]:
+            picked.append((int(i), int(j)))
+        if len(picked) == n_cells:
+            break
+    return picked
+
+
+def tidy_rows(picked, lats, lons, dates, ch4, speed, t2m_k, sp_pa, emis) -> pd.DataFrame:
+    """Long-format table in the fetch output schema from (time, lat, lon) arrays on a common grid."""
+    dates = pd.to_datetime(dates).to_period("M").to_timestamp()
+    rows = []
+    for cid, (i, j) in enumerate(picked):
+        rows.append(pd.DataFrame({
+            "cell_id": cid, "lat": float(lats[i]), "lon": float(lons[j]), "date": dates,
+            "ch4": ch4[:, i, j], "wind_speed": speed[:, i, j], "temperature": t2m_k[:, i, j] - 273.15,
+            "pressure": sp_pa[:, i, j] / 100.0, "edgar_emission": emis[i, j],
+        }))
+    out = pd.concat(rows, ignore_index=True).dropna(subset=["ch4"])
+    return out[["cell_id", "lat", "lon", "date", "ch4", "wind_speed", "temperature", "pressure", "edgar_emission"]]
 
 
 def fetch_copernicus(out_csv: Path = DEFAULT_CSV, start_year: int = 2003, end_year: int = 2020,
@@ -177,6 +206,203 @@ def fetch_copernicus(out_csv: Path = DEFAULT_CSV, start_year: int = 2003, end_ye
         rows.append(df)
     out = pd.concat(rows).dropna(subset=["ch4"])
     out = out[["cell_id", "lat", "lon", "date", "ch4", "wind_speed", "temperature", "pressure", "edgar_emission"]]
+    out_csv.parent.mkdir(parents=True, exist_ok=True)
+    out.to_csv(out_csv, index=False)
+    return out
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Fetch (NOAA GML CarbonTracker-CH4, open archive, no account)
+# ---------------------------------------------------------------------------------------------------------------
+# CT-CH4-2025 publishes one file per day (8 three-hourly means, 25 levels, global 3 x 2 deg; ~36 MB each). Only
+# the lowest model level over CONUS is needed (~100 kB per day), so each file is read with a single HTTP multi-range
+# request for exactly those bytes instead of downloading it. The byte layout below was read from the files
+# themselves (netCDF4/HDF5, contiguous little-endian float64 `ch4[time, level, latitude, longitude]`); every response
+# is checked against the expected file size, and `verify_ctch4_layout` compares the range read with a regular
+# netCDF read of the same file (done for 1 January of every year fetched). The release directory also holds older
+# `CTCH4_2024.*` copies for 1998-2016 with identical CH4 values; the `CTCH4_2025.*` files cover every year.
+
+CT_RELEASE = "CT-CH4-2025"
+CT_BASE = "https://gml.noaa.gov/aftp/products/carbontracker/ch4/CT-CH4-2025/molefractions"
+CT_YEARS = (1998, 2023)
+CT_LATS = -89.0 + 2.0 * np.arange(90)     # cell centres; cells are 2 deg in latitude
+CT_LONS = -178.5 + 3.0 * np.arange(120)   # cells are 3 deg in longitude
+CT_DLAT, CT_DLON = 2.0, 3.0
+CT_SHAPE = (8, 25, 90, 120)               # time (3-hourly), level, latitude, longitude
+CT_CH4_OFFSET = 21132                     # byte offset of the ch4 variable's data (CTCH4_2025.* files)
+CT_FILE_SIZE = 35973664
+# CONUS box lat 24..50, lon -125..-66 -> CT cell centres lat 25..49, lon -124.5..-67.5
+CT_LAT_IDX = np.where((CT_LATS > 24) & (CT_LATS < 50))[0]
+CT_LON_IDX = np.where((CT_LONS > -125) & (CT_LONS < -66))[0]
+
+
+def ctch4_url(day: pd.Timestamp) -> str:
+    return f"{CT_BASE}/{day:%Y}/{day:%m}/CTCH4_2025.molefrac_glb3x2_{day:%Y-%m-%d}.nc"
+
+
+def ctch4_byte_ranges(level: int = 0, lat_idx: np.ndarray = CT_LAT_IDX) -> list[tuple[int, int]]:
+    """Inclusive byte ranges holding ch4[t, level, lat_idx[0]..lat_idx[-1], :] for each of the 8 time steps."""
+    nt, nlev, nlat, nlon = CT_SHAPE
+    row = nlon * 8
+    out = []
+    for t in range(nt):
+        start = CT_CH4_OFFSET + ((t * nlev + level) * nlat + int(lat_idx[0])) * row
+        out.append((start, start + len(lat_idx) * row - 1))
+    return out
+
+
+def parse_multipart_ranges(body: bytes, content_type: str) -> dict[int, tuple[int, bytes]]:
+    """Parse a multipart/byteranges HTTP body into {range_start: (total_file_size, payload)}."""
+    boundary = content_type.split("boundary=", 1)[1].strip().strip('"').encode()
+    parts = {}
+    for chunk in body.split(b"--" + boundary):
+        if b"\r\n\r\n" not in chunk:
+            continue
+        head, payload = chunk.split(b"\r\n\r\n", 1)
+        rng = [ln for ln in head.decode("latin-1").split("\r\n") if ln.lower().startswith("content-range:")]
+        if not rng:
+            continue
+        spec = rng[0].split(":", 1)[1].strip().split()[1]          # "a-b/total"
+        ab, total = spec.split("/")
+        a, b = (int(x) for x in ab.split("-"))
+        parts[a] = (int(total), payload[:b - a + 1])
+    return parts
+
+
+def ctch4_day_surface(day: pd.Timestamp, session=None, retries: int = 4) -> np.ndarray:
+    """CT-CH4 lowest-level CH4 (ppb) over CONUS for one day: array (8 three-hourly steps, lat, lon)."""
+    import time
+    import requests
+    s = session or requests.Session()
+    ranges = ctch4_byte_ranges()
+    hdr = {"Range": "bytes=" + ",".join(f"{a}-{b}" for a, b in ranges)}
+    for attempt in range(retries):
+        try:
+            r = s.get(ctch4_url(day), headers=hdr, timeout=60)
+            if r.status_code != 206 or "multipart/byteranges" not in r.headers.get("Content-Type", ""):
+                raise RuntimeError(f"HTTP {r.status_code} {r.headers.get('Content-Type')}")
+            parts = parse_multipart_ranges(r.content, r.headers["Content-Type"])
+            break
+        except Exception:
+            if attempt == retries - 1:
+                raise
+            time.sleep(2 * (attempt + 1))
+    out = np.empty((len(ranges), len(CT_LAT_IDX), CT_SHAPE[3]))
+    for t, (a, b) in enumerate(ranges):
+        total, payload = parts[a]
+        if total != CT_FILE_SIZE or len(payload) != b - a + 1:
+            raise RuntimeError(f"{ctch4_url(day)}: unexpected file layout (size {total}); run verify_ctch4_layout")
+        out[t] = np.frombuffer(payload, "<f8").reshape(len(CT_LAT_IDX), CT_SHAPE[3])
+    return out[:, :, CT_LON_IDX]
+
+
+def verify_ctch4_layout(day: pd.Timestamp) -> float:
+    """Max |difference| between the byte-range read and a netCDF read of the same remote file (should be 0)."""
+    import netCDF4
+    with netCDF4.Dataset(ctch4_url(day) + "#mode=bytes") as d:
+        ref = np.asarray(d["ch4"][:, 0, CT_LAT_IDX[0]:CT_LAT_IDX[-1] + 1, CT_LON_IDX[0]:CT_LON_IDX[-1] + 1])
+        assert np.allclose(d["latitude"][CT_LAT_IDX], CT_LATS[CT_LAT_IDX])
+        assert np.allclose(d["longitude"][CT_LON_IDX], CT_LONS[CT_LON_IDX])
+    return float(np.abs(ctch4_day_surface(day) - ref).max())
+
+
+def monthly_mean_of_days(days: dict[pd.Timestamp, np.ndarray]) -> tuple[pd.DatetimeIndex, np.ndarray]:
+    """Average per-day arrays (steps, lat, lon) into calendar-month means; every day must be present."""
+    keys = sorted(days)
+    months = pd.DatetimeIndex(keys).to_period("M").unique()
+    out = []
+    for m in months:
+        want = pd.date_range(m.start_time, m.end_time.normalize(), freq="D")
+        missing = [d for d in want if d not in days]
+        if missing:
+            raise ValueError(f"{m}: {len(missing)} missing days, e.g. {missing[0]:%Y-%m-%d}")
+        out.append(np.concatenate([days[d] for d in want]).mean(0))
+    return months.to_timestamp(), np.stack(out)
+
+
+def download_ctch4_monthly(years: list[int], target: Path, threads: int = 8, log=print) -> Path:
+    """Monthly-mean CT-CH4 lowest-level CH4 over CONUS (ppb), saved as NetCDF. Resumable per month."""
+    import requests
+    import xarray as xr
+    from concurrent.futures import ThreadPoolExecutor
+    if target.exists():
+        return target
+    if years[0] < CT_YEARS[0] or years[-1] > CT_YEARS[1]:
+        raise ValueError(f"{CT_RELEASE} covers {CT_YEARS[0]}-{CT_YEARS[1]}")
+    _check_disk()
+    cache = target.parent / (target.stem + "_months")
+    cache.mkdir(parents=True, exist_ok=True)
+    sessions: dict[int, requests.Session] = {}
+
+    def day(d):
+        import threading
+        s = sessions.setdefault(threading.get_ident(), requests.Session())
+        return d, ctch4_day_surface(d, s)
+
+    with ThreadPoolExecutor(threads) as pool:
+        diffs = [verify_ctch4_layout(pd.Timestamp(y, 1, 1)) for y in years]  # serial: netCDF-C isn't thread-safe
+        if max(diffs) != 0:
+            raise RuntimeError(f"byte-range reads differ from netCDF reads (max {max(diffs)} ppb)")
+        log(f"  CT-CH4 byte layout verified against netCDF reads for {len(years)} files")
+        for y in years:
+            for mo in range(1, 13):
+                f = cache / f"{y}-{mo:02d}.npy"
+                if f.exists():
+                    continue
+                d0 = pd.Timestamp(y, mo, 1)
+                got = dict(pool.map(day, pd.date_range(d0, d0 + pd.offsets.MonthEnd(0), freq="D")))
+                _, arr = monthly_mean_of_days(got)
+                np.save(f, arr[0])
+            log(f"  CT-CH4 {y} done")
+    times = pd.DatetimeIndex([pd.Timestamp(y, m, 1) for y in years for m in range(1, 13)])
+    data = np.stack([np.load(cache / f"{t:%Y-%m}.npy") for t in times])
+    da = xr.DataArray(data, dims=("time", "lat", "lon"),
+                      coords={"time": times, "lat": CT_LATS[CT_LAT_IDX], "lon": CT_LONS[CT_LON_IDX]},
+                      name="ch4", attrs={"units": "ppb", "long_name": "CH4 mole fraction, lowest model level, "
+                                         "monthly mean of 3-hourly means", "source": CT_RELEASE})
+    da.to_dataset().to_netcdf(target)
+    return target
+
+
+def block_mean(da, lats: np.ndarray, lons: np.ndarray, dlat: float, dlon: float):
+    """Average a finer lat/lon field into cells centred on (lats, lons) of size dlat x dlon (half-open bounds)."""
+    import xarray as xr
+    la, lo = da["lat"].values, da["lon"].values
+    out = np.full(da.shape[:-2] + (len(lats), len(lons)), np.nan)
+    for i, c in enumerate(lats):
+        mi = (la >= c - dlat / 2) & (la < c + dlat / 2)
+        for j, d in enumerate(lons):
+            mj = (lo >= d - dlon / 2) & (lo < d + dlon / 2)
+            if mi.any() and mj.any():
+                out[..., i, j] = da.values[..., mi, :][..., mj].mean(axis=(-2, -1))
+    dims = da.dims[:-2] + ("lat", "lon")
+    coords = {k: da[k] for k in da.dims[:-2]} | {"lat": lats, "lon": lons}
+    return xr.DataArray(out, dims=dims, coords=coords, name=da.name)
+
+
+def fetch_open_methane(out_csv: Path = DEFAULT_CSV, start_year: int = 2003, end_year: int = 2020,
+                       n_cells: int = 40, edgar_path: Path = EDGAR_DEFAULT, threads: int = 8) -> pd.DataFrame:
+    """NOAA CT-CH4 (open) + ERA5 weather on CT-CH4's native 3 x 2 deg grid, top-N EDGAR cells, tidy CSV."""
+    years = list(range(start_year, end_year + 1))
+    tag = f"{start_year}-{end_year}"
+    ch4 = _std(_open(download_ctch4_monthly(years, RAW / f"ctch4_2025_sfc_conus_monthly_{tag}.nc", threads)))["ch4"]
+    met = _std(_open(download_era5(years, RAW / f"era5_monthly_conus_{tag}.nc")))
+    lats, lons = ch4.lat.values, ch4.lon.values
+    speed = np.sqrt(met["u10"] ** 2 + met["v10"] ** 2).rename("speed")
+    met_t = pd.to_datetime(met.time.values).to_period("M").to_timestamp()
+    ch4_t = pd.to_datetime(ch4.time.values).to_period("M").to_timestamp()
+    if not met_t.equals(ch4_t):
+        raise ValueError("ERA5 and CT-CH4 months differ")
+    def tll(v):  # drop singleton extras (e.g. ensemble `number`) and order dims as time, lat, lon
+        extra = [d for d in v.dims if d not in ("time", "lat", "lon")]
+        return v.isel({d: 0 for d in extra}).transpose("time", "lat", "lon")
+
+    regrid = {k: block_mean(tll(v), lats, lons, CT_DLAT, CT_DLON).values
+              for k, v in (("speed", speed), ("t2m", met["t2m"]), ("sp", met["sp"]))}
+    emis = edgar_on_grid(lats, lons, edgar_path, CT_DLAT, CT_DLON)
+    valid = np.isfinite(ch4.values).all(0) & np.isfinite(regrid["speed"]).all(0)
+    picked = pick_cells(emis, valid, n_cells)
+    out = tidy_rows(picked, lats, lons, ch4_t, ch4.values, regrid["speed"], regrid["t2m"], regrid["sp"], emis)
     out_csv.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(out_csv, index=False)
     return out

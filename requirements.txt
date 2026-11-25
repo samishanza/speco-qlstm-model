@@ -1,0 +1,11 @@
+cdsapi==0.7.7
+matplotlib==3.10.9
+netCDF4==1.7.4
+numpy==2.2.6
+pandas==2.3.3
+pennylane==0.42.3
+pytest==9.2.0
+scikit-learn==1.7.2
+scipy==1.15.3
+torch==2.14.1
+xarray==2025.6.1

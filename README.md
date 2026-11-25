@@ -177,3 +177,7 @@ speco_qlstm/train.py   training, evaluation, t-tests, plots
 speco_qlstm/fetch.py   download CLI
 tests/                 shape, leakage and smoke tests
 ```
+
+## License
+
+The code is released under the [MIT License](LICENSE). The data it downloads is not covered by this license: NOAA CarbonTracker-CH4, NCEP/NCAR Reanalysis 1, ERA5 and EDGAR each remain under their providers' terms (see Data above).
